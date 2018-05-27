@@ -1,3 +1,45 @@
+# Nathaniel Want
+# May 25, 2018
+#
+# Using params
+# ===============
+# The JPS algorithm requires a dictionary that contains the following key-value pairs:
+#
+# key          | value type              | value description
+# -----------------------------------------------------------
+# pool_size    | int  ( > 0 )       | the size of the member pool (population)
+# cost_target  | int                | the target (min) value we would like to achieve with the best solution
+# max_evals    | int  ( > 0 )       | the number of attempts we are willing to try before terminating the program
+# bounds       | list of 2-D tuples | the upper and lower bounds for each attribute (see bounds section for details)
+# alpha        | float  (0, 1)      | constant used for determining probability of selecting worse solution over best
+# x            | float  (0, 1)      | constant used to affect the degree of mutation for each attribute
+# eval_frac    | float  (0, 1)      | the predetermined fraction of max_evals
+#
+# -----------------------------------
+# Implementation example of params:
+# -----------------------------------
+#   params = {
+#         'pool_size': 1000,
+#         'cost_target': 0,
+#         'max_evals': 100000,
+#         'bounds': [(-10, 10), (-10, 10)],
+#         'alpha': 0.999,
+#         'x': 0.2,
+#         'eval_frac': 0.05
+#     }
+#
+# -------------------------------------
+# Bounds (More details on params['bounds'])
+# --------------------------------------
+# Bounds should be a list of 2-D tuples. Each tuple should be the lower and upper bound (respectively) for one
+# attribute that makes up a solution vector. Therefore, there should be the same number of elements in bounds as there
+# are in the expected solution (one tuple for each attribute). Further, bounds will generate the attributes for each
+# member in the pool using the order in which you assign bounds. For example, consider a attribute vector that contains
+# 3 attributes: "Good", "Bad", and "Ugly". Bounds should therefore be a list of 3 2-D tuples, where each tuple contains
+# the lower and upper bounds for "Good", "Bad", and "Ugly." If the order in which bounds contains the lower/upper bounds
+# of the attributes is: "Bad", "Ugly", "Good", this will be the attribute order of the outputted best result when
+# the JPS algorithm.
+#
 import random
 import numpy as np
 
@@ -89,7 +131,7 @@ def prob(d, davg, evals, params, p=2):
         else round(params['alpha']**evals / (1 + (d/davg)**2), p)
 
 
-def de(cost, params, s=None, p=2):
+def jps(cost, params, s=None, p=2):
     """
     Execute a Differential Evolution run
 
@@ -101,9 +143,10 @@ def de(cost, params, s=None, p=2):
     """
     random.seed(s)
     np.random.seed(s)
-
+    u = random.uniform
     evals = 0
     pool, davg = gen_pool(cost, params, u, p)
+
     # determine the cost of each member in the pool and remember the best member and its corresponding cost
     best = sorted([(m, cost(m)) for m in pool], key=lambda tup: tup[1])[0][0]
     for i, current in enumerate(pool):
@@ -117,20 +160,20 @@ def de(cost, params, s=None, p=2):
             pool[i] = next
         else:
             d = cost(next) - cost(current)
-            p = prob(d, davg, evals, params)
-            if np.random.choice([1, 0], p=[p, 1-p]) is 1:
+            pr = prob(d, davg, evals, params)
+            if np.random.choice([1, 0], p=[pr, 1-pr]) is 1:
                 pool[i] = next
 
         evals += 1
 
-    return best, cost(best)
+    return best, round(cost(best), p)
 
 
 if __name__ == '__main__':
     params = {
         'pool_size': 1000,
         'cost_target': 0,
-        'max_evals': 100000,
+        'max_evals': 100,
         'bounds': [(-10, 10), (-10, 10)],
         'alpha': 0.999,
         'x': 0.2,
@@ -140,5 +183,5 @@ if __name__ == '__main__':
     def cost(m):
         return m[0]**2 + m[1]**2
 
-    print(de(cost, params))
-
+    best, best_cost = jps(cost, params)
+    print('{0} => {1}'.format(best, best_cost))
