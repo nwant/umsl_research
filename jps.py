@@ -1,6 +1,14 @@
 # Nathaniel Want
 # May 25, 2018
 #
+# Cost (Fitness) Function
+# =======================
+# The cost function should have 2 parameters. The first is the attribute vector for testing, and the second is the
+# parameter dictionary (params). Params must contain all the values as mentioned in the "Using params" section below;
+# however, additional parameters required by your cost function may be added to this dictionary, as the JPS algorithm
+# will always pass the params dictionary when calling the cost function.
+#
+#
 # Using params
 # ===============
 # The JPS algorithm requires a dictionary that contains the following key-value pairs:
@@ -14,6 +22,9 @@
 # alpha        | float  (0, 1)      | constant used for determining probability of selecting worse solution over best
 # x            | float  (0, 1)      | constant used to affect the degree of mutation for each attribute
 # eval_frac    | float  (0, 1)      | the predetermined fraction of max_evals
+#
+# Additional key-value pairs for parameters required by your cost function should be included in this dictionary, so
+# long as the key names do not conflict with the required key-value pairs as listed above.
 #
 # -----------------------------------
 # Implementation example of params:
@@ -106,7 +117,7 @@ def gen_pool(cost, params, u=random.uniform):
 
     # determine the difference average of the pool determining the (positive) cost difference for each trail solution
     # and its corresponding mutant in the pool
-    davg = np.mean([cost(m) - cost(t) for t in rand_pool_half for m in mutant_pool_half])
+    davg = np.mean([cost(m, params) - cost(t, params) for t in rand_pool_half for m in mutant_pool_half])
 
     return rand_pool_half + mutant_pool_half, davg
 
@@ -143,31 +154,34 @@ def jps(cost, params, s=None):
     pool, davg = gen_pool(cost, params, u)
 
     # determine the cost of each member in the pool and remember the best member and its corresponding cost
-    best = sorted([(m, cost(m)) for m in pool], key=lambda tup: tup[1])[0][0]
-    while evals <= params['max_evals'] or cost(best) < params['cost_target']:
+    best = sorted([(m, cost(m, params)) for m in pool], key=lambda tup: tup[1])[0][0]
+    while evals <= params['max_evals'] or cost(best, params) < params['cost_target']:
         print(best)
         print(evals)
         for i, current in enumerate(pool):
             next = mutate(current, params, u)
-            if cost(next) < cost(best):
+            if cost(next, params) < cost(best, params):
                 best = next
-                if cost(best) < params['cost_target']:
+                if cost(best, params) < params['cost_target']:
                     break
 
-            if cost(next) < cost(current):
+            if cost(next, params) < cost(current, params):
                 pool[i] = next
             else:
-                d = cost(next) - cost(current)
+                d = cost(next, params) - cost(current, params)
                 p = prob(d, davg, evals, params)
                 if np.random.choice([1, 0], p=[p, 1-p]) is 1:
                     pool[i] = next
 
         evals += 1
 
-    return best, cost(best)
+    return best, cost(best, params)
 
 
 if __name__ == '__main__':
+    def cost(m, params):
+        return m[0]**2 + m[1]**2
+
     params = {
         'pool_size': 1000,
         'cost_target': 0,
@@ -177,9 +191,6 @@ if __name__ == '__main__':
         'x': 0.4,
         'eval_frac': 0.5
     }
-
-    def cost(m):
-        return m[0]**2 + m[1]**2
 
     best, best_cost = jps(cost, params)
     print('{0} => {1}'.format(best, best_cost))
