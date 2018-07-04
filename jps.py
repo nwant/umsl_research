@@ -67,8 +67,9 @@ def mutate_dim(dim, hi, lo, params, u=random.uniform):
     :param u: (function) the function to generate a uniform random number between 0 and 1.
     :return: (float) the mutated value for this dimension
     """
+    v = params['x'] * (hi - lo) * u(0, 1)
     # mutate this dimension with 50/50 chance of velocity being positive
-    v = params['x'] * (hi - lo) * u(0, 1) if random.choice([0, 1]) is 0 else -(params['x'] * (hi - lo) * u(0, 1))
+    v = v if random.choice([0, 1]) is 0 else -v
     dim_mutated = dim + v
 
     # clip mutation if value is out of bounds
@@ -113,18 +114,18 @@ def gen_pool(cost, params, u=random.uniform):
 
     # generate half of the pool randomly and mutate each member for the remaining half of the pool
     rand_pool_half = [gen_member() for _ in range(int(params['pool_size']/2))]
-    mutant_pool_half = [mutate(t, params, u) for t in rand_pool_half]
+    mutant_pool_half = [mutate(t, params, u) for i, t in enumerate(rand_pool_half)]
 
     # determine the difference average of the pool determining the (positive) cost difference for each trail solution
     # and its corresponding mutant in the pool
-    davg = np.mean([cost(m, params) - cost(t, params) for t in rand_pool_half for m in mutant_pool_half])
+    davg = np.mean([cost(mutant_pool_half[i], params) - cost(t, params) for i, t in enumerate(rand_pool_half)])
 
     return rand_pool_half + mutant_pool_half, davg
 
 
 def prob(d, davg, evals, params):
     """
-    Determines the probability to accept a "worse" solution vs greedly taking the best solution. This helps with
+    Determines the probability to accept a "worse" solution vs greedily taking the best solution. This helps with
     performing simulated annealing in the DE algorithm.
 
     :param d: (float) the (positive) cost difference between a member vector and its mutant vector
@@ -154,28 +155,30 @@ def jps(cost, params, s=None):
     pool, davg = gen_pool(cost, params, u)
 
     # determine the cost of each member in the pool and remember the best member and its corresponding cost
-    best = sorted([(m, cost(m, params)) for m in pool], key=lambda tup: tup[1])[0][0]
-    while evals <= params['max_evals'] or cost(best, params) < params['cost_target']:
-        print(best)
-        print(evals)
+    best, best_cost = sorted([(m, cost(m, params)) for m in pool], key=lambda tup: tup[1])[0] # sort members by lowest cost
+    while evals <= params['max_evals'] or best_cost < params['cost_target']:
+
         for i, current in enumerate(pool):
             next = mutate(current, params, u)
-            if cost(next, params) < cost(best, params):
+            next_cost = cost(next, params)
+            if next_cost < best_cost:
                 best = next
-                if cost(best, params) < params['cost_target']:
+                best_cost = next_cost
+                if best_cost < params['cost_target']:
                     break
 
-            if cost(next, params) < cost(current, params):
+            current_cost = cost(current, params)
+            if next_cost < current_cost:
                 pool[i] = next
             else:
-                d = cost(next, params) - cost(current, params)
+                d = next_cost - current_cost
                 p = prob(d, davg, evals, params)
                 if np.random.choice([1, 0], p=[p, 1-p]) is 1:
                     pool[i] = next
 
         evals += 1
 
-    return best, cost(best, params)
+    return best, best_cost
 
 
 if __name__ == '__main__':
@@ -188,7 +191,7 @@ if __name__ == '__main__':
         'max_evals': 1000,
         'bounds': [(-10, 10), (-10, 10)],
         'alpha': 0.999,
-        'x': 0.4,
+        'x': 0.1,
         'eval_frac': 0.5
     }
 
